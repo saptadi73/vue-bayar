@@ -9,6 +9,7 @@ export interface PageMeta {
   limit: number
   offset: number
   has_more?: boolean
+  total_count?: number
 }
 
 export interface Page<T> {

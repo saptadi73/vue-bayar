@@ -241,7 +241,13 @@ const skeletonRows = computed(() => Math.min(props.paged?.limit.value ?? 6, 8))
       </div>
     </template>
 
-    <!-- Pagination (offset + has_more; backend has no total count) -->
+    <!-- Pagination (offset + has_more, optionally with total_count) -->
+    <div
+      v-if="paged && paged.totalCount.value !== undefined"
+      class="border-t border-slate-100 px-4 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400"
+    >
+      Total data: {{ paged.totalCount.value }}
+    </div>
     <div
       v-if="paged && !err && (paged.page.value > 1 || paged.hasMore.value || source.length)"
       class="flex flex-col-reverse items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row dark:border-slate-800"

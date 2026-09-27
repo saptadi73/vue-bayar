@@ -19,6 +19,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const draft = reactive({
+  search: '',
   status: '',
   reference_id: '',
   client_id: '',
@@ -48,6 +49,7 @@ function apply() {
   if (draft.from && draft.to && new Date(draft.from) >= new Date(draft.to))
     return (localError.value = 'Tanggal awal harus sebelum tanggal akhir.')
   applied.value = {
+    search: draft.search.trim() || undefined,
     status: draft.status || undefined,
     reference_id: draft.reference_id.trim() || undefined,
     client_id: draft.client_id || undefined,
@@ -60,6 +62,7 @@ function apply() {
 
 function clear() {
   Object.assign(draft, {
+    search: '',
     status: '',
     reference_id: '',
     client_id: '',
@@ -90,14 +93,20 @@ const columns: Column[] = [
     <DataTable
       :columns="columns"
       :paged="paged"
-      searchable
-      :search-keys="['payment_no', 'reference_id', 'client_name', 'event_name']"
       clickable
       empty-title="Belum ada transaksi"
       empty-message="Transaksi yang dibuat backend Portal Event akan muncul di sini."
       @row-click="(r) => router.push(`/admin/payments/${r.id}`)"
     >
       <template #toolbar>
+        <input
+          v-model="draft.search"
+          type="search"
+          class="input min-w-52"
+          placeholder="Cari payment, event, client…"
+          aria-label="Cari payment"
+          @keyup.enter="apply"
+        />
         <AppButton
           variant="secondary"
           :icon="SlidersHorizontal"

@@ -9,8 +9,8 @@ interface Options<F> {
 }
 
 /**
- * Offset pagination driven by backend `has_more` (backend has no total count).
- * Search filters only the rows of the current page because the API has no search param.
+ * Offset pagination driven by backend `has_more`, with optional `total_count`.
+ * Search is sent to the backend when the page API exposes a search filter.
  */
 export function usePaged<T, F = unknown>(
   fetcher: (q: { limit: number; offset: number } & F) => Promise<Page<T>>,
@@ -22,6 +22,7 @@ export function usePaged<T, F = unknown>(
   const limit = ref(opts.pageSize ?? 20)
   const offset = ref(0)
   const hasMore = ref(false)
+  const totalCount = ref<number | undefined>(undefined)
   const page = computed(() => Math.floor(offset.value / limit.value) + 1)
   let seq = 0
 
@@ -38,6 +39,7 @@ export function usePaged<T, F = unknown>(
       if (id !== seq) return
       rows.value = res.data
       hasMore.value = res.meta.has_more ?? res.data.length === limit.value
+      totalCount.value = res.meta.total_count
     } catch (e) {
       if (id !== seq) return
       error.value = e instanceof ApiError ? e : new ApiError(0, { message: 'Gagal memuat data' })
@@ -70,6 +72,7 @@ export function usePaged<T, F = unknown>(
     offset,
     page,
     hasMore,
+    totalCount,
     load,
     go,
     next,

@@ -102,7 +102,7 @@ if (res) await clientsApi.rotateSecret(id, client.version, res.reason)
 | ----------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `/admin/login`          | -                                           | `POST /admin/auth/login`, `GET /admin/auth/me`                                                             |
 | `/admin`                | - (metrik hanya jika `admin.payments.read`) | `GET /admin/payments/summary`, `GET /admin/payments`                                                       |
-| `/admin/payments`       | `admin.payments.read`                       | `GET /admin/payments` (filter status/reference/client/event/tanggal)                                       |
+| `/admin/payments`       | `admin.payments.read`                       | `GET /admin/payments` (search + filter status/reference/client/event/tanggal); export memakai `/export`    |
 | `/admin/payments/:id`   | `admin.payments.read`                       | detail, `/history`, `/attempts`; `POST /admin/reconciliation/{attempt}/request`; `GET/POST /admin/refunds` |
 | `/admin/reconciliation` | `admin.reconciliation.read`                 | `GET /admin/reconciliation`                                                                                |
 | `/admin/refunds`        | `admin.refunds.read`                        | list, `POST /{id}/approve`, `POST /{id}/reject`                                                            |
@@ -151,8 +151,10 @@ Logo selalu dirender di atas chip putih agar tetap terbaca di dark mode.
 
 ## Batasan yang diketahui
 
-- Backend tidak menyediakan total count maupun parameter pencarian: pagination memakai
-  `has_more`, dan kotak pencarian memfilter baris pada halaman yang sedang tampil.
+- Payment mendukung pencarian server-side melalui parameter `search` dan mengembalikan
+  `meta.total_count`; pagination tetap memakai `has_more` sebagai sumber tombol next.
+- Endpoint export payment menggunakan cursor: `GET /admin/payments/export` dengan filter
+  yang sama termasuk `search`, `limit` maksimal 5000, serta `cursor` dari `meta.next_cursor`.
 - Dashboard hanya memakai agregasi `summary` (per status & per client); belum ada deret
   waktu. Setiap pemuatan summary tercatat `PAYMENT_SUMMARY_VIEWED` di audit.
 - MFA, role editor, settings, dan export CSV belum diimplementasikan di UI.

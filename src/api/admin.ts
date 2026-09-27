@@ -122,6 +122,7 @@ export const servicesApi = {
 }
 
 export interface PaymentFilter {
+  search?: string
   client_id?: string
   service_id?: string
   event_id?: string
@@ -133,6 +134,11 @@ export interface PaymentFilter {
 
 export const paymentsApi = {
   list: (q: PageQuery & PaymentFilter) => api.get<Page<Payment>>('/admin/payments', { ...q }),
+  export: (q: PaymentFilter & { limit?: number; cursor?: string; snapshot_at?: string }) =>
+    api.get<{ data: Payment[]; meta: { limit: number; has_more: boolean; next_cursor?: string | null; snapshot_at: string; format: string; source: string } }>(
+      '/admin/payments/export',
+      { ...q },
+    ),
   summary: (q: Pick<PaymentFilter, 'client_id' | 'status' | 'created_from' | 'created_to'>) =>
     api.get<Data<PaymentSummary>>('/admin/payments/summary', { ...q }),
   get: (id: string) => api.get<Data<Payment>>(`/admin/payments/${id}`),

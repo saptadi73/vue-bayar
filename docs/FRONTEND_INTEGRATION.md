@@ -80,6 +80,8 @@ Katalog error lengkap ada di [API_ERROR_CODES.md](API_ERROR_CODES.md).
 - 401: token hilang/invalid/expired atau client inactive; minta link baru lewat backend Event.
 - 404: payment/attempt bukan milik token atau tidak ditemukan.
 - 409: konflik state; ambil status terbaru.
+- `ATTEMPT_IN_PROGRESS`: attempt provider sebelumnya masih aktif atau outcome belum pasti;
+  polling status/inquiry diperlukan, jangan membuat order baru otomatis.
 - 422: input invalid.
 - Gangguan provider: tampilkan pesan; jangan otomatis membuat order/payment baru.
 
@@ -104,5 +106,18 @@ Frontend admin dapat memakai endpoint aktif berikut sesuai permission:
 - Revoke checkout: `POST /admin/clients/{client_id}/revoke-checkouts` dengan
   `{ "reason": "..." }`, membutuhkan `admin.clients.manage` dan CSRF.
 - Export/summary payment: lihat [ADMIN_PAYMENT_API.md](ADMIN_PAYMENT_API.md).
+- Daftar payment mendukung `search` server-side dan `meta.total_count`; gunakan keduanya
+  untuk menampilkan hasil pencarian lintas halaman.
+- Export payment juga menerima filter `search` yang sama melalui
+  `GET /admin/payments/export`; lanjutkan paging memakai `meta.next_cursor` dan
+  `meta.snapshot_at`.
+- Kontrak response admin payment sudah dipublikasikan di OpenAPI untuk list, detail,
+  history, attempts, dan export; generated client dapat mengikuti schema tersebut.
+- Refund parsial mengikuti batas kumulatif nominal payment; jika backend mengembalikan
+  `REFUND_LIMIT_EXCEEDED` atau `INVALID_REFUND_AMOUNT`, tampilkan policy error dan jangan
+  melakukan retry otomatis.
+- Jika payment sudah PAID lalu provider melaporkan attempt lain sebagai PAID, backend
+  mempertahankan winning attempt dan mengarantina event duplicate/late untuk reconciliation;
+  frontend tidak boleh menandai payment dari webhook/redirect secara langsung.
 - Retry reconciliation: `RETRY_WAIT` berarti worker akan mencoba lagi sesuai
   exponential backoff; `FAILED` berarti batas retry tercapai.
