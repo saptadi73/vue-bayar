@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Pencil, LogOut, Eye, EyeOff } from '@lucide/vue'
+import { Plus, Pencil, LogOut, Eye, EyeOff, ShieldCheck } from '@lucide/vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import DataTable, { type Column } from '@/components/ui/DataTable.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
@@ -11,7 +11,7 @@ import AppSwitch from '@/components/ui/AppSwitch.vue'
 import FormField from '@/components/ui/FormField.vue'
 import { usePaged } from '@/composables/usePaged'
 import { useConfirm } from '@/composables/useConfirm'
-import { usersApi } from '@/api/admin'
+import { authApi, usersApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/lib/http'
@@ -47,6 +47,29 @@ const form = reactive({
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 const showPw = ref(false)
+const mfaOpen = ref(false)
+const mfaSecret = ref('')
+const mfaUri = ref('')
+const mfaCode = ref('')
+const recoveryCodes = ref<string[]>([])
+const mfaBusy = ref(false)
+
+async function enrollMfa() {
+  mfaBusy.value = true
+  try {
+    const result = await authApi.mfaEnroll()
+    mfaSecret.value = result.data.secret; mfaUri.value = result.data.otpauth_uri; mfaCode.value = ''; recoveryCodes.value = []; mfaOpen.value = true
+  } catch (e) { toast.apiError(e, 'Gagal memulai MFA') } finally { mfaBusy.value = false }
+}
+
+async function confirmMfa() {
+  if (!mfaCode.value.trim()) return
+  mfaBusy.value = true
+  try {
+    recoveryCodes.value = (await authApi.mfaConfirm(mfaCode.value.trim())).data.recovery_codes
+    toast.success('MFA aktif', 'Simpan recovery code di tempat aman.')
+  } catch (e) { toast.apiError(e, 'Kode MFA tidak valid') } finally { mfaBusy.value = false }
+}
 
 function openForm(u?: AdminUser) {
   editing.value = u ?? null
@@ -186,6 +209,7 @@ async function revoke(u: AdminUser) {
       subtitle="Operator portal. Bukan akun pembayar Portal Event."
     >
       <template v-if="canManage" #actions>
+        <AppButton variant="secondary" :icon="ShieldCheck" :loading="mfaBusy" @click="enrollMfa">MFA saya</AppButton>
         <AppButton :icon="Plus" @click="openForm()">Tambah pengguna</AppButton>
       </template>
     </PageHeader>
@@ -358,6 +382,25 @@ async function revoke(u: AdminUser) {
       <template #footer>
         <AppButton variant="secondary" :disabled="saving" @click="close">Batal</AppButton>
         <AppButton type="submit" form="user-form" :loading="saving">Simpan</AppButton>
+      </template>
+    </AppModal>
+
+    <AppModal :open="mfaOpen" title="MFA akun saya" size="sm" @close="mfaOpen = false">
+      <div class="space-y-4 text-sm">
+        <p v-if="!recoveryCodes.length">Scan URI TOTP berikut pada authenticator, lalu masukkan kode 6 digit.</p>
+        <p v-if="!recoveryCodes.length" class="break-all rounded-lg bg-slate-50 p-3 font-mono text-xs dark:bg-slate-800">{{ mfaUri }}</p>
+        <p v-if="!recoveryCodes.length" class="rounded-lg bg-amber-50 p-3 font-mono text-xs text-amber-800">Secret: {{ mfaSecret }}</p>
+        <FormField v-if="!recoveryCodes.length" label="Kode TOTP" for="mfa-code" required>
+          <input id="mfa-code" v-model="mfaCode" class="input font-mono" inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+        </FormField>
+        <div v-else class="rounded-lg bg-amber-50 p-3 text-amber-900">
+          <p class="mb-2 font-semibold">Recovery code — simpan sekarang, hanya tampil sekali:</p>
+          <div class="grid grid-cols-2 gap-1 font-mono text-xs"> <span v-for="code in recoveryCodes" :key="code">{{ code }}</span> </div>
+        </div>
+      </div>
+      <template #footer>
+        <AppButton v-if="!recoveryCodes.length" :loading="mfaBusy" @click="confirmMfa">Aktifkan MFA</AppButton>
+        <AppButton v-else @click="mfaOpen = false">Selesai</AppButton>
       </template>
     </AppModal>
   </div>

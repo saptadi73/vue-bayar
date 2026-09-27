@@ -13,6 +13,11 @@ import type {
   PaymentSummary,
   PortalEvent,
   PortalUser,
+  MerchantAccount,
+  Organizer,
+  PaymentChannelConfig,
+  RoutingRule,
+  FeatureFlag,
   ReconciliationCase,
   Refund,
   Role,
@@ -25,15 +30,18 @@ type Data<T> = { data: T }
 export type PageQuery = { limit: number; offset: number }
 
 export const authApi = {
-  login: (identifier: string, password: string) =>
+  login: (identifier: string, password: string, otp?: string) =>
     api.post<Data<LoginResponse>>(
       '/admin/auth/login',
-      { identifier, password },
+      { identifier, password, ...(otp ? { otp } : {}) },
       { silent401: true },
     ),
   me: () => api.get<Data<MeResponse>>('/admin/auth/me', undefined, { silent401: true }),
   logout: () =>
     api.post<Data<{ status: string }>>('/admin/auth/logout', undefined, { silent401: true }),
+  mfaEnroll: () => api.post<Data<{ secret: string; otpauth_uri: string }>>('/admin/auth/mfa/enroll'),
+  mfaConfirm: (code: string) => api.post<Data<{ recovery_codes: string[] }>>('/admin/auth/mfa/confirm', { code }),
+  reauthenticate: (password: string) => api.post<Data<{ status: string; valid_for_seconds: number }>>('/admin/auth/reauthenticate', { password }),
 }
 
 export interface UserCreate {
@@ -64,10 +72,14 @@ export const usersApi = {
         reason,
       },
     ),
+  assignClient: (id: string, client_id: string, reason: string) =>
+    api.post<Data<{ id: string; user_id: string; client_id: string; active: boolean }>>(`/admin/users/${id}/clients`, { client_id, reason }),
 }
 
 export const rolesApi = {
   list: () => api.get<Data<RoleDef[]>>('/admin/roles'),
+  update: (code: string, body: { display_name: string; permissions: string[]; expected_version: number; reason: string }) =>
+    api.patch<Data<RoleDef>>(`/admin/roles/${code}`, body),
 }
 
 export const auditApi = {
@@ -110,6 +122,12 @@ export const clientsApi = {
     api.get<Page<PortalEvent>>(`/admin/clients/${id}/events`, q),
   portalUsers: (id: string, q: PageQuery) =>
     api.get<Page<PortalUser>>(`/admin/clients/${id}/portal-users`, q),
+  createPortalUser: (id: string, body: { email: string; name: string; reason: string }) =>
+    api.post<Data<PortalUser>>(`/admin/clients/${id}/portal-users`, body),
+  updatePortalUser: (clientId: string, userId: string, body: { name: string; expected_version: number; reason: string }) =>
+    api.patch<Data<PortalUser>>(`/admin/clients/${clientId}/portal-users/${userId}`, body),
+  deletePortalUser: (clientId: string, userId: string, reason: string) =>
+    api.delete<Data<{ id: string; status: string }>>(`/admin/clients/${clientId}/portal-users/${userId}`, { reason }),
 }
 
 export const servicesApi = {
@@ -117,13 +135,39 @@ export const servicesApi = {
     api.get<Page<Service>>(`/admin/clients/${clientId}/services`, q),
   create: (
     clientId: string,
-    body: { code: string; name: string; active: boolean; reason: string },
+    body: { code: string; name: string; organizer_id?: string | null; active: boolean; reason: string },
   ) => api.post<Data<Service>>(`/admin/clients/${clientId}/services`, body),
   update: (
     clientId: string,
     id: string,
-    body: { name: string; active: boolean; expected_version: number; reason: string },
+    body: { name: string; organizer_id?: string | null; active: boolean; expected_version: number; reason: string },
   ) => api.patch<Data<Service>>(`/admin/clients/${clientId}/services/${id}`, body),
+}
+
+export const routingApi = {
+  organizers: (clientId: string) => api.get<Data<Organizer[]>>(`/admin/clients/${clientId}/organizers`),
+  createOrganizer: (clientId: string, body: { code: string; name: string; active: boolean; reason: string }) =>
+    api.post<Data<Organizer>>(`/admin/clients/${clientId}/organizers`, body),
+  updateOrganizer: (clientId: string, id: string, body: { name: string; active: boolean; expected_version: number; reason: string }) =>
+    api.patch<Data<Organizer>>(`/admin/clients/${clientId}/organizers/${id}`, body),
+  merchantAccounts: (clientId: string) => api.get<Data<MerchantAccount[]>>(`/admin/clients/${clientId}/merchant-accounts`),
+  createMerchantAccount: (clientId: string, body: { code: string; name: string; gateway: string; credential_ref?: string | null; active: boolean; reason: string }) =>
+    api.post<Data<MerchantAccount>>(`/admin/clients/${clientId}/merchant-accounts`, body),
+  updateMerchantAccount: (clientId: string, id: string, body: { name: string; credential_ref?: string | null; active: boolean; expected_version: number; reason: string }) =>
+    api.patch<Data<MerchantAccount>>(`/admin/clients/${clientId}/merchant-accounts/${id}`, body),
+  channels: (clientId: string) => api.get<Data<PaymentChannelConfig[]>>(`/admin/clients/${clientId}/payment-channels`),
+  createChannel: (clientId: string, body: { merchant_account_id: string; gateway: string; channel_code: string; name: string; active: boolean; min_amount?: number | null; max_amount?: number | null; currencies: string[]; reason: string }) =>
+    api.post<Data<PaymentChannelConfig>>(`/admin/clients/${clientId}/payment-channels`, body),
+  updateChannel: (clientId: string, id: string, body: { name: string; active: boolean; min_amount?: number | null; max_amount?: number | null; currencies: string[]; expected_version: number; reason: string }) =>
+    api.patch<Data<PaymentChannelConfig>>(`/admin/clients/${clientId}/payment-channels/${id}`, body),
+  routingRules: (clientId: string) => api.get<Data<RoutingRule[]>>(`/admin/clients/${clientId}/routing-rules`),
+  createRoutingRule: (clientId: string, body: { service_id?: string | null; event_id?: string | null; channel_code: string; merchant_account_id: string; priority: number; active: boolean; reason: string }) =>
+    api.post<Data<RoutingRule>>(`/admin/clients/${clientId}/routing-rules`, body),
+  updateRoutingRule: (clientId: string, id: string, body: { merchant_account_id: string; priority: number; active: boolean; expected_version: number; reason: string }) =>
+    api.patch<Data<RoutingRule>>(`/admin/clients/${clientId}/routing-rules/${id}`, body),
+  featureFlags: (clientId: string) => api.get<Data<FeatureFlag[]>>(`/admin/clients/${clientId}/feature-flags`),
+  upsertFeatureFlag: (clientId: string, body: { key: string; enabled: boolean; config: Record<string, unknown>; expected_version?: number; reason: string }) =>
+    api.put<Data<FeatureFlag>>(`/admin/clients/${clientId}/feature-flags`, body),
 }
 
 export interface PaymentFilter {

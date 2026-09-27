@@ -14,7 +14,8 @@ const toast = useToastStore()
 const route = useRoute()
 const router = useRouter()
 
-const form = reactive({ identifier: '', password: '' })
+const form = reactive({ identifier: '', password: '', otp: '' })
+const mfaRequired = ref(false)
 const show = ref(false)
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -40,7 +41,7 @@ async function submit() {
   requestId.value = undefined
   loading.value = true
   try {
-    await auth.login(form.identifier.trim(), form.password)
+    await auth.login(form.identifier.trim(), form.password, mfaRequired.value ? form.otp : undefined)
     toast.success('Selamat datang', auth.user?.display_name)
     const redirect =
       typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/admin')
@@ -55,7 +56,13 @@ async function submit() {
         error.value = 'Terlalu banyak percobaan masuk. Coba lagi nanti.'
       } else if (e.code === 'ADMIN_DISABLED')
         error.value = 'Portal admin belum diaktifkan di server.'
-      else if (e.code === 'ADMIN_ORIGIN_DENIED')
+      else if (e.code === 'ADMIN_MFA_REQUIRED') {
+        mfaRequired.value = true
+        error.value = 'Masukkan kode MFA atau recovery code.'
+      } else if (e.code === 'ADMIN_MFA_INVALID') {
+        mfaRequired.value = true
+        error.value = 'Kode MFA tidak valid.'
+      } else if (e.code === 'ADMIN_ORIGIN_DENIED')
         error.value = 'Origin tidak diizinkan. Akses portal dari domain resmi.'
       else if (e.status === 401 || e.status === 422)
         error.value = 'Email atau password tidak valid.'
@@ -63,6 +70,7 @@ async function submit() {
     } else error.value = 'Terjadi kesalahan tak terduga.'
   } finally {
     form.password = ''
+    if (!mfaRequired.value) form.otp = ''
     loading.value = false
   }
 }
@@ -173,6 +181,10 @@ async function submit() {
                 placeholder="nama@perusahaan.com"
               />
             </div>
+        <div v-if="mfaRequired" class="space-y-1.5">
+          <label for="otp" class="label">Kode MFA / recovery code</label>
+          <input id="otp" v-model="form.otp" class="input font-mono" autocomplete="one-time-code" maxlength="32" inputmode="numeric" />
+        </div>
           </div>
           <div>
             <label for="password" class="label">Password</label>

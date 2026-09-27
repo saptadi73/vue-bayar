@@ -42,7 +42,7 @@ const SESSION_CODES = new Set(['ADMIN_SESSION_REQUIRED', 'ADMIN_SESSION_INVALID'
 type Query = Record<string, string | number | boolean | null | undefined>
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH'
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
   query?: Query
   headers?: Record<string, string>
@@ -109,4 +109,8 @@ export const api = {
     request<T>(path, { ...opts, method: 'POST', body: body ?? {} }),
   patch: <T>(path: string, body: unknown, opts?: RequestOptions) =>
     request<T>(path, { ...opts, method: 'PATCH', body }),
+  put: <T>(path: string, body: unknown, opts?: RequestOptions) =>
+    request<T>(path, { ...opts, method: 'PUT', body }),
+  delete: <T>(path: string, body?: unknown, opts?: RequestOptions) =>
+    request<T>(path, { ...opts, method: 'DELETE', body }),
 }

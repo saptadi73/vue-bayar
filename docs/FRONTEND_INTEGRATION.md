@@ -11,6 +11,12 @@ mengikuti [ADMIN_CLIENT_API.md](ADMIN_CLIENT_API.md). Pengelolaan user mengikuti
 dan penanganan LAST_SUPER_ADMIN. MFA dan role editor masih mock.
 Tab service client: [ADMIN_SERVICE_API.md](ADMIN_SERVICE_API.md), termasuk permission,
 versi edit dan dampak penonaktifan (menolak order baru, tidak membatalkan order lama).
+Administrasi pembayar per client: [ADMIN_PORTAL_USER_API.md](ADMIN_PORTAL_USER_API.md),
+termasuk create/update/delete, email immutable, optimistic version, dan delete conflict.
+Konfigurasi merchant/routing/channel/feature flag: [ADMIN_ROUTING_API.md](ADMIN_ROUTING_API.md).
+Frontend tidak boleh mengisi credential secret; hanya `credential_ref` yang direferensikan.
+Checkout menampilkan channel dari server; jangan hard-code channel pada UI. Channel
+yang tidak eligible akan ditolak backend dengan `UNSUPPORTED_CHANNEL`.
 Modul daftar/detail transaksi admin: [ADMIN_PAYMENT_API.md](ADMIN_PAYMENT_API.md),
 dengan filter, pagination dan tab history/attempts. API ini tidak mengirim customer PII.
 Antrean inquiry admin dijelaskan di [ADMIN_RECONCILIATION_API.md](ADMIN_RECONCILIATION_API.md);
@@ -102,7 +108,10 @@ Frontend admin dapat memakai endpoint aktif berikut sesuai permission:
 
 - Event: `GET /admin/clients/{client_id}/events` dan detail event.
 - PortalUser PII: `GET /admin/clients/{client_id}/portal-users`, hanya
-  `admin.portal_users.read` dan setiap akses diaudit.
+  `admin.portal_users.read` dan setiap akses diaudit. CRUD memakai
+  `admin.portal_users.manage`; email immutable, edit mengirim `expected_version`,
+  dan delete dapat menghasilkan `PORTAL_USER_DELETE_CONFLICT`. Detail endpoint
+  ada di [ADMIN_PORTAL_USER_API.md](ADMIN_PORTAL_USER_API.md).
 - Revoke checkout: `POST /admin/clients/{client_id}/revoke-checkouts` dengan
   `{ "reason": "..." }`, membutuhkan `admin.clients.manage` dan CSRF.
 - Export/summary payment: lihat [ADMIN_PAYMENT_API.md](ADMIN_PAYMENT_API.md).
@@ -116,6 +125,11 @@ Frontend admin dapat memakai endpoint aktif berikut sesuai permission:
 - Rotasi callback secret dilakukan operator melalui `POST /admin/clients/{id}/rotate-callback-secret`;
   secret hanya tampil sekali, memakai `callback_secret_version`, tidak mencabut OAuth JWT,
   dan harus dikoordinasikan dengan Portal Event. Jangan simpan secret di localStorage.
+- Frontend tidak perlu mengelola encryption key; key hanya berada di deployment backend/
+  secret manager. Error `CREDENTIAL_DECRYPTION_FAILED` harus ditampilkan sebagai kegagalan
+  operasional dan tidak di-retry sebagai payment baru.
+- Rotasi encryption key bersifat backend-only dan tidak mengubah kontrak frontend maupun
+  OAuth/callback secret yang diterima Portal Event.
 - Semua listing admin memakai `meta.has_more` secara konsisten untuk tombol pagination;
   jangan mengasumsikan halaman terakhir hanya dari jumlah baris lokal.
 - Refund parsial mengikuti batas kumulatif nominal payment; jika backend mengembalikan

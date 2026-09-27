@@ -33,8 +33,8 @@ export const useAuthStore = defineStore('auth', () => {
     return !!me.value
   }
 
-  async function login(identifier: string, password: string) {
-    const res = await authApi.login(identifier, password)
+  async function login(identifier: string, password: string, otp?: string) {
+    const res = await authApi.login(identifier, password, otp)
     setCsrfToken(res.data.csrf_token)
     await fetchMe()
   }

@@ -6,6 +6,8 @@ Lihat [PORTAL_IDENTITY.md](PORTAL_IDENTITY.md). event_id, event_name dan custome
 wajib pada create payment. Client ditentukan JWT; nama Portal dari registrasi operator.
 Event unik per client, pembayar berdasarkan email per client. Satu pembayar dapat membuat
 beberapa order per event dengan reference_id berbeda. service_code tetap untuk routing.
+Payload lama tanpa event/email tidak boleh di-replay dengan reference baru; backend akan
+menolak request tersebut dengan 422.
 
 ## Kontrak aktif
 

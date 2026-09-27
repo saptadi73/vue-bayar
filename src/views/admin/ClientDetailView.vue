@@ -37,12 +37,12 @@ import {
 } from '@/components/admin/clientFormModel'
 import { usePaged } from '@/composables/usePaged'
 import { useConfirm } from '@/composables/useConfirm'
-import { clientsApi, servicesApi } from '@/api/admin'
+import { clientsApi, routingApi, servicesApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { ApiError } from '@/lib/http'
 import { P } from '@/lib/permissions'
-import type { Client, PortalEvent, PortalUser, Service } from '@/types/api'
+import type { Client, FeatureFlag, MerchantAccount, PaymentChannelConfig, PortalEvent, PortalUser, RoutingRule, Service } from '@/types/api'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -73,12 +73,27 @@ const tabs = computed(() => [
   { key: 'services', label: 'Service', icon: Layers, hidden: !auth.can(P.servicesRead) },
   { key: 'events', label: 'Event', icon: CalendarDays, hidden: !auth.can(P.paymentsRead) },
   { key: 'payers', label: 'Pembayar', icon: Users, hidden: !auth.can(P.portalUsersRead) },
+  { key: 'routing', label: 'Gateway & Channel', icon: Settings2, hidden: !auth.can(P.routingRead) },
 ])
 
 // Lazy tabs: portal-users access is audited as PII read, so only fetch on demand.
 const services = usePaged<Service>((q) => servicesApi.list(id, q), { immediate: false })
 const events = usePaged<PortalEvent>((q) => clientsApi.events(id, q), { immediate: false })
 const payers = usePaged<PortalUser>((q) => clientsApi.portalUsers(id, q), { immediate: false })
+const merchantAccounts = ref<MerchantAccount[]>([])
+const channels = ref<PaymentChannelConfig[]>([])
+const routingRules = ref<RoutingRule[]>([])
+const featureFlags = ref<FeatureFlag[]>([])
+const routingLoading = ref(false)
+async function loadRouting() {
+  routingLoading.value = true
+  try {
+    const [merchants, configuredChannels, rules, flags] = await Promise.all([
+      routingApi.merchantAccounts(id), routingApi.channels(id), routingApi.routingRules(id), routingApi.featureFlags(id),
+    ])
+    merchantAccounts.value = merchants.data; channels.value = configuredChannels.data; routingRules.value = rules.data; featureFlags.value = flags.data
+  } catch (e) { toast.apiError(e, 'Gagal memuat konfigurasi gateway') } finally { routingLoading.value = false }
+}
 const loaded = new Set<string>()
 watch(tab, (t) => {
   if (loaded.has(t)) return
@@ -86,6 +101,7 @@ watch(tab, (t) => {
   if (t === 'services') services.load()
   if (t === 'events') events.load()
   if (t === 'payers') payers.load()
+  if (t === 'routing') loadRouting()
 })
 
 function onConflict(e: unknown, title: string) {
@@ -282,7 +298,67 @@ const eventCols: Column[] = [
 const payerCols: Column[] = [
   { key: 'name', label: 'Nama' },
   { key: 'email', label: 'Email' },
+  { key: 'version', label: 'Versi', align: 'center', mobileHidden: true },
 ]
+const payerOpen = ref(false)
+const payerEditing = ref<PortalUser | null>(null)
+const payerForm = reactive({ email: '', name: '', reason: '' })
+const payerErrors = ref<Record<string, string>>({})
+const payerSaving = ref(false)
+
+function openPayer(user?: PortalUser) {
+  payerEditing.value = user ?? null
+  Object.assign(payerForm, { email: user?.email ?? '', name: user?.name ?? '', reason: '' })
+  payerErrors.value = {}
+  payerOpen.value = true
+}
+
+async function savePayer() {
+  const errors: Record<string, string> = {}
+  if (!payerEditing.value && (!payerForm.email.trim().includes('@') || !payerForm.email.trim().includes('.')))
+    errors.email = 'Email valid wajib diisi.'
+  if (!payerForm.name.trim()) errors.name = 'Nama wajib diisi.'
+  if (!payerForm.reason.trim()) errors.reason = 'Alasan wajib diisi.'
+  payerErrors.value = errors
+  if (Object.keys(errors).length) return
+  payerSaving.value = true
+  try {
+    if (payerEditing.value) {
+      await clientsApi.updatePortalUser(id, payerEditing.value.id, {
+        name: payerForm.name.trim(),
+        expected_version: payerEditing.value.version,
+        reason: payerForm.reason.trim(),
+      })
+    } else {
+      await clientsApi.createPortalUser(id, {
+        email: payerForm.email.trim(),
+        name: payerForm.name.trim(),
+        reason: payerForm.reason.trim(),
+      })
+    }
+    payerOpen.value = false
+    toast.success(payerEditing.value ? 'Pembayar diperbarui' : 'Pembayar ditambahkan')
+    payers.load()
+  } catch (e) {
+    if (e instanceof ApiError && e.code === 'PORTAL_USER_EXISTS') payerErrors.value = { email: 'Email sudah terdaftar.' }
+    else if (e instanceof ApiError && e.status === 422) payerErrors.value = e.fieldErrors
+    else if (onConflict(e, 'Gagal menyimpan pembayar')) { payerOpen.value = false; payers.load() }
+  } finally { payerSaving.value = false }
+}
+
+async function removePayer(user: PortalUser) {
+  const res = await confirm({
+    title: 'Hapus pembayar ' + user.email + '?',
+    impacts: ['Data hanya dapat dihapus jika belum direferensikan transaksi.', 'Order historis tidak dihapus.'],
+    tone: 'danger', confirmText: 'Hapus', reason: true,
+  })
+  if (!res) return
+  try {
+    await clientsApi.deletePortalUser(id, user.id, res.reason)
+    toast.success('Pembayar dihapus')
+    payers.load()
+  } catch (e) { toast.apiError(e, 'Gagal menghapus pembayar') }
+}
 </script>
 
 <template>
@@ -464,8 +540,50 @@ const payerCols: Column[] = [
           :paged="payers"
           searchable
           empty-title="Belum ada pembayar"
-        />
+        >
+          <template v-if="auth.can(P.portalUsersManage)" #toolbar>
+            <AppButton :icon="Plus" @click="openPayer()">Tambah</AppButton>
+          </template>
+          <template #cell-version="{ value }"><span class="font-mono text-xs">v{{ value }}</span></template>
+          <template v-if="auth.can(P.portalUsersManage)" #actions="{ row }">
+            <div class="flex gap-1">
+              <AppButton size="sm" variant="ghost" :icon="Pencil" @click="openPayer(row)">Ubah</AppButton>
+              <AppButton size="sm" variant="ghost" :icon="Ban" @click="removePayer(row)">Hapus</AppButton>
+            </div>
+          </template>
+        </DataTable>
       </template>
+
+      <div v-if="tab === 'routing'" class="grid gap-4 lg:grid-cols-2">
+        <AppCard title="Merchant account">
+          <SkeletonBlock v-if="routingLoading" :lines="3" />
+          <div v-else-if="!merchantAccounts.length" class="text-sm text-slate-500">Belum ada merchant account.</div>
+          <div v-else class="space-y-2">
+            <div v-for="merchant in merchantAccounts" :key="merchant.id" class="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700">
+              <div><p class="font-semibold">{{ merchant.name }}</p><p class="font-mono text-xs text-slate-500">{{ merchant.code }} · {{ merchant.gateway }}</p></div>
+              <AppBadge :tone="merchant.active ? 'success' : 'neutral'" dot>{{ merchant.active ? 'Aktif' : 'Nonaktif' }}</AppBadge>
+            </div>
+          </div>
+        </AppCard>
+        <AppCard title="Payment channels">
+          <SkeletonBlock v-if="routingLoading" :lines="3" />
+          <div v-else-if="!channels.length" class="text-sm text-slate-500">Belum ada channel terkonfigurasi.</div>
+          <div v-else class="space-y-2">
+            <div v-for="channel in channels" :key="channel.id" class="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700">
+              <div><p class="font-semibold">{{ channel.name }}</p><p class="font-mono text-xs text-slate-500">{{ channel.channel_code }} · {{ channel.currencies.join(', ') }}</p></div>
+              <AppBadge :tone="channel.active ? 'success' : 'neutral'" dot>{{ channel.active ? 'Eligible' : 'Disabled' }}</AppBadge>
+            </div>
+          </div>
+        </AppCard>
+        <AppCard title="Routing rules">
+          <div v-if="!routingRules.length" class="text-sm text-slate-500">Belum ada routing rule.</div>
+          <div v-for="rule in routingRules" :key="rule.id" class="flex justify-between border-b border-slate-100 py-2 text-xs dark:border-slate-800"><span>{{ rule.event_id ?? 'Semua event' }} · {{ rule.channel_code }}</span><span class="font-mono">p{{ rule.priority }}</span></div>
+        </AppCard>
+        <AppCard title="Feature flags">
+          <div v-if="!featureFlags.length" class="text-sm text-slate-500">Belum ada feature flag.</div>
+          <div v-for="flag in featureFlags" :key="flag.id" class="flex justify-between border-b border-slate-100 py-2 text-xs dark:border-slate-800"><span class="font-mono">{{ flag.key }}</span><AppBadge :tone="flag.enabled ? 'success' : 'neutral'">{{ flag.enabled ? 'ON' : 'OFF' }}</AppBadge></div>
+        </AppCard>
+      </div>
     </div>
 
     <!-- Edit client modal -->
@@ -484,6 +602,31 @@ const payerCols: Column[] = [
           >Batal</AppButton
         >
         <AppButton type="submit" form="client-edit" :loading="saving">Simpan</AppButton>
+      </template>
+    </AppModal>
+
+    <AppModal
+      :open="payerOpen"
+      title="Form pembayar"
+      size="sm"
+      :persistent="payerSaving"
+      @close="payerOpen = false"
+    >
+      <form id="payer-form" class="space-y-4" @submit.prevent="savePayer">
+        <FormField v-if="!payerEditing" label="Email" for="p-email" required :error="payerErrors.email">
+          <input id="p-email" v-model="payerForm.email" type="email" class="input" maxlength="320" :aria-invalid="!!payerErrors.email" />
+        </FormField>
+        <p v-else class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">Email immutable: {{ payerEditing.email }}</p>
+        <FormField label="Nama" for="p-name" required :error="payerErrors.name">
+          <input id="p-name" v-model="payerForm.name" class="input" maxlength="200" :aria-invalid="!!payerErrors.name" />
+        </FormField>
+        <FormField label="Alasan" for="p-reason" required :error="payerErrors.reason">
+          <textarea id="p-reason" v-model="payerForm.reason" rows="2" maxlength="500" class="input resize-none" :aria-invalid="!!payerErrors.reason" />
+        </FormField>
+      </form>
+      <template #footer>
+        <AppButton variant="secondary" :disabled="payerSaving" @click="payerOpen = false">Batal</AppButton>
+        <AppButton type="submit" form="payer-form" :loading="payerSaving">Simpan</AppButton>
       </template>
     </AppModal>
 

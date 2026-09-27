@@ -26,6 +26,8 @@ export interface AdminUser {
   active: boolean
   role: Role
   version: number
+  force_password_change?: boolean
+  mfa_enabled?: boolean
 }
 
 export interface MeResponse {
@@ -46,7 +48,9 @@ export interface LoginResponse {
 
 export interface RoleDef {
   code: Role
+  display_name?: string
   permissions: string[]
+  version?: number
 }
 
 export interface AuditEntry {
@@ -84,7 +88,62 @@ export interface Service {
   client_id: string
   code: string
   name: string
+  organizer_id: string | null
   active: boolean
+  version: number
+}
+
+export interface MerchantAccount {
+  id: string
+  client_id: string
+  code: string
+  name: string
+  gateway: string
+  credential_ref: string | null
+  active: boolean
+  version: number
+}
+
+export interface Organizer {
+  id: string
+  client_id: string
+  code: string
+  name: string
+  active: boolean
+  version: number
+}
+
+export interface PaymentChannelConfig {
+  id: string
+  merchant_account_id: string
+  gateway: string
+  channel_code: string
+  name: string
+  active: boolean
+  min_amount: number | null
+  max_amount: number | null
+  currencies: string[]
+  version: number
+}
+
+export interface RoutingRule {
+  id: string
+  client_id: string
+  service_id: string | null
+  event_id: string | null
+  channel_code: string
+  merchant_account_id: string
+  priority: number
+  active: boolean
+  version: number
+}
+
+export interface FeatureFlag {
+  id: string
+  client_id: string
+  key: string
+  enabled: boolean
+  config: Record<string, unknown>
   version: number
 }
 
@@ -100,6 +159,7 @@ export interface PortalUser {
   client_id: string
   email: string
   name: string
+  version: number
 }
 
 export type PaymentStatus =

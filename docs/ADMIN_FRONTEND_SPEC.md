@@ -1,11 +1,13 @@
 # Rancangan Frontend Admin Payment Portal
 
-Status: rancangan target UI. Fondasi backend login/me/logout dan read-only user/role/audit
+Status: rancangan target UI. Fondasi backend login/me/logout, account-aware rate limit,
+MFA TOTP, dan reauthentication
 sudah tersedia khusus development; kontrak AKTIF ada di [ADMIN_API.md](ADMIN_API.md).
 Bagian API/matrix di bawah tetap target rancangan; jangan menganggap semua endpoint
 atau permission sudah tersedia. Client create/read/update/rotate tersedia di
 [ADMIN_CLIENT_API.md](ADMIN_CLIENT_API.md); create/update/revoke user tersedia di
-[ADMIN_USER_API.md](ADMIN_USER_API.md). MFA, role editor dan UI masih belum tersedia.
+[ADMIN_USER_API.md](ADMIN_USER_API.md). Role editor tersedia pada halaman Role & Izin;
+UI MFA tersedia pada halaman Pengguna Admin untuk akun operator aktif.
 Tab service per client sudah memiliki API list/detail/create/update:
 [ADMIN_SERVICE_API.md](ADMIN_SERVICE_API.md). Bagian kontrak aktif tersebut mengungguli
 path/field usulan pada tabel rancangan di bawah.
@@ -13,6 +15,9 @@ Pembacaan transaksi (list/detail/history/attempts) sudah tersedia:
 [ADMIN_PAYMENT_API.md](ADMIN_PAYMENT_API.md). Customer PII tidak disertakan pada tahap ini.
 Antrean rekonsiliasi tersedia di [ADMIN_RECONCILIATION_API.md](ADMIN_RECONCILIATION_API.md);
 response 202 bukan bukti payment PAID.
+Konfigurasi merchant, channel, routing, dan feature flag tersedia melalui
+[ADMIN_ROUTING_API.md](ADMIN_ROUTING_API.md); runtime provider tetap menunggu UAT.
+Tab Gateway & Channel pada detail client menampilkan konfigurasi aktif dari server.
 Katalog error frontend ada di [API_ERROR_CODES.md](API_ERROR_CODES.md). Event Portal,
 listing PortalUser PII, revoke checkout, export, summary, dan retry reconciliation
 memiliki kontrak aktif di dokumen API masing-masing; tabel rancangan di bawah hanya
@@ -122,7 +127,9 @@ Prefix usulan /api/v1/admin. Nama path/field berikut untuk mock dan pembahasan b
 | Metode/path | Kebutuhan frontend |
 | --- | --- |
 | POST /auth/login | Input identifier/password; hasil authenticated atau mfa_required |
-| POST /auth/mfa/verify | Input challenge_id/code; menerbitkan sesi setelah valid |
+| POST /auth/mfa/enroll | Membuat secret TOTP terenkripsi; secret sekali tampil |
+| POST /auth/mfa/confirm | Konfirmasi OTP dan recovery code sekali tampil |
+| POST /auth/reauthenticate | Verifikasi password ulang untuk aksi sensitif |
 | GET /auth/me | Profil, roles, permissions, batas client, expiry sesi dan CSRF token |
 | POST /auth/logout | Revoke sesi; frontend hapus state |
 | GET /users; POST /users; PATCH /users/{id} | Listing dan pengelolaan user |
