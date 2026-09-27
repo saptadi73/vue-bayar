@@ -66,6 +66,7 @@ export interface Client {
   name: string
   active: boolean
   version: number
+  callback_secret_version: number
   scopes: Scope[]
   allowed_return_urls: string[]
   allowed_callback_urls: string[]

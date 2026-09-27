@@ -128,6 +128,9 @@ Menu "Pengaturan" ditampilkan sebagai "Segera" karena backend belum tersedia.
   422 -> error per field dari `details`. 429 -> hitung mundur `Retry-After`.
 - Tidak ada auto-retry mutasi; tombol dinonaktifkan saat submit.
 - Mutasi mengirim `expected_version` dari data terakhir dan `reason` untuk audit.
+- Rotasi callback memakai `callback_secret_version` melalui
+  `POST /admin/clients/{id}/rotate-callback-secret`; secret baru hanya ditampilkan sekali
+  untuk koordinasi backend Event dan tidak boleh disimpan di browser.
 - Refund: tombol approve disembunyikan untuk pengaju sendiri (backend tetap menolak
   `REFUND_SELF_APPROVAL`).
 - Tab Pembayar (PII) dimuat hanya saat dibuka karena setiap akses diaudit.

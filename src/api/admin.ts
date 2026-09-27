@@ -96,6 +96,11 @@ export const clientsApi = {
       expected_version,
       reason,
     }),
+  rotateCallbackSecret: (id: string, expected_version: number, reason: string) =>
+    api.post<Data<ClientCredentials>>(`/admin/clients/${id}/rotate-callback-secret`, {
+      expected_version,
+      reason,
+    }),
   revokeCheckouts: (id: string, reason: string) =>
     api.post<Data<{ client_id: string; checkout_sessions_revoked: number }>>(
       `/admin/clients/${id}/revoke-checkouts`,

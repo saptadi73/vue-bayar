@@ -113,6 +113,11 @@ Frontend admin dapat memakai endpoint aktif berikut sesuai permission:
   `meta.snapshot_at`.
 - Kontrak response admin payment sudah dipublikasikan di OpenAPI untuk list, detail,
   history, attempts, dan export; generated client dapat mengikuti schema tersebut.
+- Rotasi callback secret dilakukan operator melalui `POST /admin/clients/{id}/rotate-callback-secret`;
+  secret hanya tampil sekali, memakai `callback_secret_version`, tidak mencabut OAuth JWT,
+  dan harus dikoordinasikan dengan Portal Event. Jangan simpan secret di localStorage.
+- Semua listing admin memakai `meta.has_more` secara konsisten untuk tombol pagination;
+  jangan mengasumsikan halaman terakhir hanya dari jumlah baris lokal.
 - Refund parsial mengikuti batas kumulatif nominal payment; jika backend mengembalikan
   `REFUND_LIMIT_EXCEEDED` atau `INVALID_REFUND_AMOUNT`, tampilkan policy error dan jangan
   melakukan retry otomatis.
