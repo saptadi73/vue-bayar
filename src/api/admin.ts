@@ -42,6 +42,12 @@ export const authApi = {
   mfaEnroll: () => api.post<Data<{ secret: string; otpauth_uri: string }>>('/admin/auth/mfa/enroll'),
   mfaConfirm: (code: string) => api.post<Data<{ recovery_codes: string[] }>>('/admin/auth/mfa/confirm', { code }),
   reauthenticate: (password: string) => api.post<Data<{ status: string; valid_for_seconds: number }>>('/admin/auth/reauthenticate', { password }),
+  changePassword: (current_password: string, new_password: string, reason: string) =>
+    api.post<Data<{ status: string }>>(
+      '/admin/users/password-change',
+      { current_password, new_password, reason },
+      { silent401: true },
+    ),
 }
 
 export interface UserCreate {

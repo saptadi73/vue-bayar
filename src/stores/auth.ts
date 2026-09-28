@@ -39,6 +39,11 @@ export const useAuthStore = defineStore('auth', () => {
     await fetchMe()
   }
 
+  async function changePassword(currentPassword: string, newPassword: string) {
+    await authApi.changePassword(currentPassword, newPassword, 'Initial password change')
+    await fetchMe()
+  }
+
   async function logout() {
     try {
       await authApi.logout()
@@ -62,6 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
     canAny,
     fetchMe,
     login,
+    changePassword,
     logout,
     clear,
   }

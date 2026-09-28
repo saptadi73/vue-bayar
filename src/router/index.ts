@@ -25,6 +25,12 @@ const router = createRouter({
       meta: { title: 'Masuk', guestOnly: true },
     },
     {
+      path: '/admin/password-change',
+      name: 'password-change',
+      component: () => import('@/views/auth/PasswordChangeView.vue'),
+      meta: { title: 'Ganti Password', auth: true },
+    },
+    {
       path: '/admin',
       component: AdminLayout,
       meta: { auth: true },
@@ -121,6 +127,10 @@ router.beforeEach(async (to) => {
 
   if (to.meta.guestOnly) return auth.isAuthenticated ? { path: '/admin' } : true
   if (!auth.isAuthenticated) return { name: 'login', query: { redirect: to.fullPath } }
+  if (auth.user?.force_password_change && to.name !== 'password-change')
+    return { name: 'password-change' }
+  if (!auth.user?.force_password_change && to.name === 'password-change')
+    return { name: 'dashboard' }
 
   // Guard direct URLs too, not only menu visibility.
   const any = to.meta.any
